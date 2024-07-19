@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Fullscreen Camera</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: black;
+            flex-direction: column;
+        }
+        #videoContainer {
+            position: relative;
+            width: 100%;
+            height: calc(100% - 50px); /* Adjust for controls height */
+            cursor: grab;
+        }
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            transition: transform 0.3s ease-in-out;
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+        }
+        button, select {
+            margin: 0 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="videoContainer">
+        <video id="video" autoplay></video>
+    </div>
+    <div id="controls">
+        <select id="cameraSelect"></select>
+        <button onclick="zoomIn()">放大</button>
+        <button onclick="zoomOut()">缩小</button>
+        <button onclick="rotate()">旋转 90°</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const cameraSelect = document.getElementById('cameraSelect');
+        let scale = 1;
+        let rotation = 0;
+        let posX = 0;
+        let posY = 0;
+        let dragging = false;
+        let startX, startY;
+        let currentStream = null;
+
+        // 获取摄像头视频流并显示在 video 标签中
+        async function startCamera(deviceId = null) {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+            
+            const constraints = {
+                video: {
+                    deviceId: deviceId ? { exact: deviceId } : undefined,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            };
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                currentStream = stream;
+                video.srcObject = stream;
+            } catch (error) {
+                console.error('Error accessing camera: ', error);
+            }
+        }
+
+        // 切换摄像头
+        cameraSelect.addEventListener('change', () => {
+            startCamera(cameraSelect.value);
+        });
+
+        // 放大
+        function zoomIn() {
+            scale += 0.1;
+            updateTransform();
+        }
+
+        // 缩小
+        function zoomOut() {
+            scale -= 0.1;
+            updateTransform();
+        }
+
+        // 旋转
+        function rotate() {
+            rotation += 90;
+            updateTransform();
+        }
+
+        // 更新 video 标签的 transform 样式
+        function updateTransform() {
+            video.style.transform = `translate(${posX}px, ${posY}px) scale(${scale}) rotate(${rotation}deg)`;
+        }
+
+        // 获取所有视频输入设备
+        async function getCameras() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+            cameraSelect.innerHTML = '';
+            videoDevices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+                cameraSelect.appendChild(option);
+            });
+
+            if (videoDevices.length > 0) {
+                startCamera(videoDevices[0].deviceId);
+            }
+        }
+
+        // 启动摄像头
+        getCameras();
+
+        // 触摸事件处理
+videoContainer.addEventListener('touchstart', (e) => {
+    dragging = true;
+    startX = e.touches[0].clientX - posX;
+    startY = e.touches[0].clientY - posY;
+    videoContainer.style.cursor = 'grabbing';
+    e.preventDefault();
+});
+
+window.addEventListener('touchend', () => {
+    dragging = false;
+    videoContainer.style.cursor = 'grab';
+});
+
+window.addEventListener('touchmove', (e) => {
+    if (dragging) {
+        posX = e.touches[0].clientX - startX;
+        posY = e.touches[0].clientY - startY;
+        updateTransform();
+        e.preventDefault();
+    }
+});
+    </script>
+</body>
+</html>
